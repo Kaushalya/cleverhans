@@ -6,7 +6,12 @@ from __future__ import print_function
 
 import os
 
-from cleverhans.attacks import FastGradientMethod
+from tensorflow.contrib.slim.python.slim.nets import inception_v3
+from nets import mobilenet_v1, alexnet
+
+from cleverhans.attacks import FastGradientMethod, CarliniWagnerL2, BasicIterativeMethod, DeepFool
+from caffe_tensorflow.kaffe.tensorflow import network
+
 import numpy as np
 from PIL import Image
 
@@ -27,6 +32,9 @@ tf.flags.DEFINE_string(
 
 tf.flags.DEFINE_string(
     'output_dir', '', 'Output directory with images.')
+
+tf.flags.DEFINE_string(
+    'attack_type', 'fgsm', 'Type of the attack.')
 
 tf.flags.DEFINE_float(
     'max_epsilon', 16.0, 'Maximum size of adversarial perturbation.')
@@ -60,12 +68,17 @@ def load_images(input_dir, batch_shape):
   filenames = []
   idx = 0
   batch_size = batch_shape[0]
-  for filepath in tf.gfile.Glob(os.path.join(input_dir, '*.png')):
-    with tf.gfile.Open(filepath) as f:
-      image = np.array(Image.open(f).convert('RGB')).astype(np.float) / 255.0
+  for filepath in tf.gfile.Glob(os.path.join(input_dir, '*.JPEG')):
+    with tf.gfile.Open(filepath, 'rb') as f:
+      image = np.array(Image.open(f).resize([FLAGS.image_height, FLAGS.image_width]).convert('RGB')).astype(np.float) / 255.0
     # Images for inception classifier are normalized to be in [-1, 1] interval.
     images[idx, :, :, :] = image * 2.0 - 1.0
-    filenames.append(os.path.basename(filepath))
+    if os.path.basename(input_dir)=='*':
+      head, tail = os.path.split(filepath)
+      filename = os.path.join(os.path.basename(head), tail)
+    else:
+      filename = os.path.basename(filepath)
+    filenames.append(filename)
     idx += 1
     if idx == batch_size:
       yield filenames, images
@@ -75,6 +88,30 @@ def load_images(input_dir, batch_shape):
   if idx > 0:
     yield filenames, images
 
+def load_kaffe_model(name,  x_input, reuse=False):
+    '''Creates and returns an instance of the model given its class name.
+    The created model has a single placeholder node for feeding images.
+    '''
+    from caffe_tensorflow.examples.imagenet import models
+
+    # Find the model class from its name
+    all_models = models.get_models()
+    lut = {model.__name__: model for model in all_models}
+    if name not in lut:
+        print('Invalid model index. Options are:')
+        # Display a list of valid model names
+        for model in all_models:
+            print('\t* {}'.format(model.__name__))
+        return None
+    NetClass = lut[name]
+
+    # Create a placeholder for the input image
+    spec = models.get_data_spec(model_class=NetClass)
+    data_node = tf.placeholder(tf.float32,
+                               shape=(None, spec.crop_size, spec.crop_size, spec.channels))
+
+    # Construct and return the model
+    return NetClass({'data': x_input}, reuse=reuse, trainable=False)
 
 def save_images(images, filenames, output_dir):
   """Saves images to the output directory.
@@ -87,12 +124,19 @@ def save_images(images, filenames, output_dir):
     output_dir: directory where to save images
   """
   for i, filename in enumerate(filenames):
+    dirname = os.path.split(filename)[0]
+    dirpath = os.path.join(output_dir, dirname)
+
+    if dirname!='':
+      if not os.path.exists(dirpath):
+        os.makedirs(dirpath)
+
     # Images for inception classifier are normalized to be in [-1, 1] interval,
     # so rescale them back to [0, 1].
     with tf.gfile.Open(os.path.join(output_dir, filename), 'w') as f:
       img = (((images[i, :, :, :] + 1.0) * 0.5) * 255.0).astype(np.uint8)
-      Image.fromarray(img).save(f, format='PNG')
-
+      Image.fromarray(img).save(f)
+#format='PNG'
 
 class InceptionModel(object):
   """Model class for CleverHans library."""
@@ -104,8 +148,8 @@ class InceptionModel(object):
   def __call__(self, x_input):
     """Constructs model and return probabilities for given input."""
     reuse = True if self.built else None
-    with slim.arg_scope(inception.inception_v3_arg_scope()):
-      _, end_points = inception.inception_v3(
+    with slim.arg_scope(inception_v3.inception_v3_arg_scope()):
+      _, end_points = inception_v3.inception_v3(
           x_input, num_classes=self.num_classes, is_training=False,
           reuse=reuse)
     self.built = True
@@ -115,12 +159,81 @@ class InceptionModel(object):
     return probs
 
 
+class MobilenetModel(object):
+  """MobileNet model class for CleverHans library."""
+
+  def __init__(self, num_classes):
+    self.num_classes = num_classes
+    self.built = False
+
+  def __call__(self, x_input):
+    """Constructs model and return probabilities for given input."""
+    reuse = True if self.built else None
+    with slim.arg_scope(mobilenet_v1.mobilenet_v1_arg_scope()):
+      _, end_points = mobilenet_v1.mobilenet_v1(
+          x_input, num_classes=self.num_classes, is_training=False,
+          reuse=reuse)
+    self.built = True
+    output = end_points['Predictions']
+    # Strip off the extra reshape op at the output
+    probs = output.op.inputs[0]
+    return probs
+
+
+class AlexnetModel(object):
+  """Alexnet model class for CleverHans library."""
+
+  def __init__(self, num_classes):
+    self.num_classes = num_classes
+    self.built = False
+
+  def __call__(self, x_input):
+    """Constructs model and return probabilities for given input."""
+    reuse = True if self.built else None
+    with slim.arg_scope(alexnet.alexnet_v2_arg_scope()):
+      _, end_points = alexnet.alexnet_v2(
+          x_input, num_classes=self.num_classes, is_training=False, reuse=reuse)
+    self.built = True
+    output = end_points['alexnet_v2/fc8']
+    # Strip off the extra reshape op at the output
+    probs = output.op.inputs[0]
+    return probs
+
+
+class KaffeModel(object):
+
+  def __init__(self, num_classes, model_name):
+    self.num_classes = num_classes
+    self.model_name = model_name
+    self.built = False
+    self.net = None
+
+  def __call__(self, x_input):
+    """Constructs model and return probabilities for given input."""
+    reuse = True if self.built else None
+    net = load_kaffe_model(self.model_name, x_input, reuse=reuse)
+    self.built = True
+    self.net = net
+    #output = end_points['alexnet_v2/fc8']
+    # Strip off the extra reshape op at the output
+    output = self.net.get_output()
+    probs = output.op.inputs[0]
+    return probs
+
+  def load_model(self, model_path, session):
+    self.net.load(data_path=model_path, session=session)
+
+
 def main(_):
   # Images for inception classifier are normalized to be in [-1, 1] interval,
   # eps is a difference between pixels so it should be in [0, 2] interval.
   # Renormalizing epsilon from [0, 255] to [0, 2].
   eps = 2.0 * FLAGS.max_epsilon / 255.0
+  slim_model = False
+
   batch_shape = [FLAGS.batch_size, FLAGS.image_height, FLAGS.image_width, 3]
+  if not slim_model:
+    batch_shape = [FLAGS.batch_size, FLAGS.image_height, FLAGS.image_width, 3]
   num_classes = 1001
 
   tf.logging.set_verbosity(tf.logging.INFO)
@@ -129,22 +242,55 @@ def main(_):
     # Prepare graph
     x_input = tf.placeholder(tf.float32, shape=batch_shape)
 
-    model = InceptionModel(num_classes)
+    model = KaffeModel(num_classes, 'AlexNet')
+    # model = MobilenetModel(num_classes) #TODO
 
-    fgsm = FastGradientMethod(model)
-    x_adv = fgsm.generate(x_input, eps=eps, clip_min=-1., clip_max=1.)
+    attack = None
+    x_adv = None
 
+    if FLAGS.attack_type == 'fgsm':
+      attack = FastGradientMethod(model)
+      attack_params = {'eps': eps,
+                       'clip_min': -1.,
+                       'clip_max': 1.}
+    elif FLAGS.attack_type == 'carlini':
+      targeted = False
+      attack = CarliniWagnerL2(model)
+      attack_params = {'binary_search_steps': 1,
+                   'y': None,
+                   'max_iterations': 100,
+                   'learning_rate': 0.1,
+                   'batch_size': FLAGS.batch_size * num_classes if
+                   targeted else FLAGS.batch_size,
+                   'initial_const': 10}
+      x_adv = attack.generate(x_input, clip_min=-1., clip_max=1.)
+    elif FLAGS.attack_type == 'basic_iter':
+      attack = BasicIterativeMethod(model)
+      x_adv = attack.generate(x_input, eps=eps, clip_min=-1., clip_max=1.)
+    elif FLAGS.attack_type == 'deepfool':
+      attack = DeepFool(model)
+      x_adv = attack.generate(x_input, eps=eps, clip_min=-1., clip_max=1.)
+
+    x_adv = attack.generate(x_input, **attack_params)
     # Run computation
-    saver = tf.train.Saver(slim.get_model_variables())
-    session_creator = tf.train.ChiefSessionCreator(
-        scaffold=tf.train.Scaffold(saver=saver),
-        checkpoint_filename_with_path=FLAGS.checkpoint_path,
-        master=FLAGS.master)
+    if slim_model:
+        saver = tf.train.Saver(slim.get_model_variables())
+        session_creator = tf.train.ChiefSessionCreator(
+            scaffold=tf.train.Scaffold(saver=saver),
+            checkpoint_filename_with_path=FLAGS.checkpoint_path,
+            master=FLAGS.master)
 
-    with tf.train.MonitoredSession(session_creator=session_creator) as sess:
-      for filenames, images in load_images(FLAGS.input_dir, batch_shape):
-        adv_images = sess.run(x_adv, feed_dict={x_input: images})
-        save_images(adv_images, filenames, FLAGS.output_dir)
+        with tf.train.MonitoredSession(session_creator=session_creator) as sess:
+          for filenames, images in load_images(FLAGS.input_dir, batch_shape):
+            adv_images = sess.run(x_adv, feed_dict={x_input: images})
+            save_images(adv_images, filenames, FLAGS.output_dir)
+
+    else:
+        with tf.Session() as sess:
+          model.load_model(model_path=FLAGS.checkpoint_path, session=sess)
+          for filenames, images in load_images(FLAGS.input_dir, batch_shape):
+            adv_images = sess.run(x_adv, feed_dict={x_input: images})
+            save_images(adv_images, filenames, FLAGS.output_dir)
 
 
 if __name__ == '__main__':
