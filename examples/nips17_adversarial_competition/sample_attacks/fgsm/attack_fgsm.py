@@ -18,6 +18,7 @@ from PIL import Image
 import tensorflow as tf
 from tensorflow.contrib.slim.nets import inception
 
+import re
 slim = tf.contrib.slim
 
 
@@ -66,6 +67,7 @@ def load_images(input_dir, batch_shape):
   """
   images = np.zeros(batch_shape)
   filenames = []
+  existing_dirs = [os.path.basename(dir) for dir in os.listdir(FLAGS.output_dir)]
   idx = 0
   batch_size = batch_shape[0]
   for filepath in tf.gfile.Glob(os.path.join(input_dir, '*.JPEG')):
@@ -73,9 +75,12 @@ def load_images(input_dir, batch_shape):
       image = np.array(Image.open(f).resize([FLAGS.image_height, FLAGS.image_width]).convert('RGB')).astype(np.float) / 255.0
     # Images for inception classifier are normalized to be in [-1, 1] interval.
     images[idx, :, :, :] = image * 2.0 - 1.0
-    if os.path.basename(input_dir)=='*':
+    if os.path.basename(os.path.normpath(input_dir))=='*':
       head, tail = os.path.split(filepath)
-      filename = os.path.join(os.path.basename(head), tail)
+      dirname=os.path.basename(head)
+      if dirname in existing_dirs:
+        continue
+      filename = os.path.join(dirname, tail)
     else:
       filename = os.path.basename(filepath)
     filenames.append(filename)
@@ -124,10 +129,10 @@ def save_images(images, filenames, output_dir):
     output_dir: directory where to save images
   """
   for i, filename in enumerate(filenames):
-    dirname = os.path.split(filename)[0]
-    dirpath = os.path.join(output_dir, dirname)
+    dirname = os.path.dirname(filename)
 
     if dirname!='':
+      dirpath = os.path.join(output_dir, dirname)
       if not os.path.exists(dirpath):
         os.makedirs(dirpath)
 
