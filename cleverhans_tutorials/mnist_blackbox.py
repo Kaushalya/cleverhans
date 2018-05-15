@@ -1,3 +1,9 @@
+"""
+This tutorial shows how to generate adversarial examples
+using FGSM in black-box setting.
+The original paper can be found at:
+https://arxiv.org/abs/1602.02697
+"""
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -19,6 +25,7 @@ from cleverhans.attacks_tf import jacobian_graph, jacobian_augmentation
 
 from cleverhans_tutorials.tutorial_models import make_basic_cnn, MLP
 from cleverhans_tutorials.tutorial_models import Flatten, Linear, ReLU, Softmax
+from cleverhans.utils import TemporaryLogLevel
 
 FLAGS = flags.FLAGS
 
@@ -66,7 +73,7 @@ def prep_bbox(sess, x, y, X_train, Y_train, X_test, Y_test,
         'batch_size': batch_size,
         'learning_rate': learning_rate
     }
-    model_train(sess, x, y, predictions, X_train, Y_train, verbose=False,
+    model_train(sess, x, y, predictions, X_train, Y_train,
                 args=train_params, rng=rng)
 
     # Print out the accuracy on legitimate data
@@ -139,15 +146,18 @@ def train_sub(sess, x, y, bbox_preds, X_sub, Y_sub, nb_classes,
             'batch_size': batch_size,
             'learning_rate': learning_rate
         }
-        model_train(sess, x, y, preds_sub, X_sub, to_categorical(Y_sub),
-                    init_all=False, verbose=False, args=train_params,
-                    rng=rng)
+        with TemporaryLogLevel(logging.WARNING, "cleverhans.utils.tf"):
+            model_train(sess, x, y, preds_sub, X_sub,
+                        to_categorical(Y_sub, nb_classes),
+                        init_all=False, args=train_params, rng=rng)
 
         # If we are not at last substitute training iteration, augment dataset
         if rho < data_aug - 1:
             print("Augmenting substitute training data.")
             # Perform the Jacobian augmentation
-            X_sub = jacobian_augmentation(sess, x, X_sub, Y_sub, grads, lmbda)
+            lmbda_coef = 2 * int(int(rho / 3) != 0) - 1
+            X_sub = jacobian_augmentation(sess, x, X_sub, Y_sub, grads,
+                                          lmbda_coef * lmbda)
 
             print("Labeling substitute training data.")
             # Label the newly generated synthetic points using the black-box

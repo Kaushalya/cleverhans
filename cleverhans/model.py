@@ -56,8 +56,11 @@ class Model(object):
         try:
             return self.get_layer(x, 'probs')
         except NoSuchLayerError:
-            import tensorflow as tf
-            return tf.nn.softmax(self.get_logits(x))
+            pass
+        except NotImplementedError:
+            pass
+        import tensorflow as tf
+        return tf.nn.softmax(self.get_logits(x))
 
     def get_layer_names(self):
         """
@@ -78,6 +81,13 @@ class Model(object):
                  representation of their output.
         """
         raise NotImplementedError('`fprop` not implemented.')
+
+    def get_params(self):
+        """
+        Provides access to the model's parameters.
+        :return: A list of all Variables defining the model parameters.
+        """
+        raise NotImplementedError()
 
 
 class CallableModelWrapper(Model):

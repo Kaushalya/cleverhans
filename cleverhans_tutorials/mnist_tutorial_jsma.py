@@ -1,3 +1,9 @@
+"""
+This tutorial shows how to generate adversarial examples
+using JSMA in white-box setting.
+The original paper can be found at:
+https://arxiv.org/abs/1511.07528
+"""
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -152,8 +158,8 @@ def mnist_tutorial_jsma(train_start=0, train_end=60000, test_start=0,
             # Display the original and adversarial images side-by-side
             if viz_enabled:
                 figure = pair_visual(
-                    np.reshape(sample, (img_rows, img_cols)),
-                    np.reshape(adv_x, (img_rows, img_cols)), figure)
+                    np.reshape(sample, (img_rows, img_cols, channels)),
+                    np.reshape(adv_x, (img_rows, img_cols, channels)), figure)
 
             # Add our adversarial example to our grid data
             grid_viz_data[target, current_class, :, :, :] = np.reshape(
