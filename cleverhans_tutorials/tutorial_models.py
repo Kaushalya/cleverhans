@@ -33,6 +33,7 @@ class MLP(Model):
                 name = layer.name
             else:
                 name = layer.__class__.__name__ + str(i)
+                layer.name = name
             self.layer_names.append(name)
 
             layer.set_input_shape(input_shape)
@@ -48,6 +49,14 @@ class MLP(Model):
             states.append(x)
         states = dict(zip(self.get_layer_names(), states))
         return states
+
+    def get_params(self):
+        out = []
+        for layer in self.layers:
+            for param in layer.get_params():
+                if param not in out:
+                    out.append(param)
+        return out
 
 
 class Layer(object):
@@ -74,6 +83,9 @@ class Linear(Layer):
     def fprop(self, x):
         return tf.matmul(x, self.W) + self.b
 
+    def get_params(self):
+        return [self.W, self.b]
+
 
 class Conv2D(Layer):
 
@@ -98,12 +110,15 @@ class Conv2D(Layer):
         dummy_batch = tf.zeros(input_shape)
         dummy_output = self.fprop(dummy_batch)
         output_shape = [int(e) for e in dummy_output.get_shape()]
-        output_shape[0] = 1
+        output_shape[0] = batch_size
         self.output_shape = tuple(output_shape)
 
     def fprop(self, x):
         return tf.nn.conv2d(x, self.kernels, (1,) + tuple(self.strides) + (1,),
                             self.padding) + self.b
+
+    def get_params(self):
+        return [self.kernels, self.b]
 
 
 class ReLU(Layer):
@@ -115,11 +130,11 @@ class ReLU(Layer):
         self.input_shape = shape
         self.output_shape = shape
 
-    def get_output_shape(self):
-        return self.output_shape
-
     def fprop(self, x):
         return tf.nn.relu(x)
+
+    def get_params(self):
+        return []
 
 
 class Softmax(Layer):
@@ -134,6 +149,9 @@ class Softmax(Layer):
     def fprop(self, x):
         return tf.nn.softmax(x)
 
+    def get_params(self):
+        return []
+
 
 class Flatten(Layer):
 
@@ -146,10 +164,13 @@ class Flatten(Layer):
         for factor in shape[1:]:
             output_width *= factor
         self.output_width = output_width
-        self.output_shape = [None, output_width]
+        self.output_shape = [shape[0], output_width]
 
     def fprop(self, x):
         return tf.reshape(x, [-1, self.output_width])
+
+    def get_params(self):
+        return []
 
 
 def make_basic_cnn(nb_filters=64, nb_classes=10,

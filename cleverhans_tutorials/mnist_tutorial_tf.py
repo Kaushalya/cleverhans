@@ -1,9 +1,10 @@
 """
-This tutorial shows how to generate some simple adversarial examples
-and train a model using adversarial training using nothing but pure
-TensorFlow.
+This tutorial shows how to generate adversarial examples using FGSM
+and train a model using adversarial training with TensorFlow.
 It is very similar to mnist_tutorial_keras_tf.py, which does the same
 thing but with a dependence on keras.
+The original paper can be found at:
+https://arxiv.org/abs/1412.6572
 """
 from __future__ import absolute_import
 from __future__ import division
@@ -32,7 +33,7 @@ def mnist_tutorial(train_start=0, train_end=60000, test_start=0,
                    clean_train=True,
                    testing=False,
                    backprop_through_attack=False,
-                   nb_filters=64):
+                   nb_filters=64, num_threads=None):
     """
     MNIST cleverhans tutorial
     :param train_start: index of first training set example
@@ -63,7 +64,11 @@ def mnist_tutorial(train_start=0, train_end=60000, test_start=0,
     set_log_level(logging.DEBUG)
 
     # Create TF session
-    sess = tf.Session()
+    if num_threads:
+        config_args = dict(intra_op_parallelism_threads=1)
+    else:
+        config_args = {}
+    sess = tf.Session(config=tf.ConfigProto(**config_args))
 
     # Get MNIST test data
     X_train, Y_train, X_test, Y_test = data_mnist(train_start=train_start,
@@ -106,7 +111,7 @@ def mnist_tutorial(train_start=0, train_end=60000, test_start=0,
             assert X_test.shape[0] == test_end - test_start, X_test.shape
             print('Test accuracy on legitimate examples: %0.4f' % acc)
         model_train(sess, x, y, preds, X_train, Y_train, evaluate=evaluate,
-                    args=train_params, rng=rng)
+                    args=train_params, rng=rng, var_list=model.get_params())
 
         # Calculate training error
         if testing:
@@ -167,7 +172,7 @@ def mnist_tutorial(train_start=0, train_end=60000, test_start=0,
     # Perform and evaluate adversarial training
     model_train(sess, x, y, preds_2, X_train, Y_train,
                 predictions_adv=preds_2_adv, evaluate=evaluate_2,
-                args=train_params, rng=rng)
+                args=train_params, rng=rng, var_list=model_2.get_params())
 
     # Calculate training errors
     if testing:

@@ -42,7 +42,7 @@ Once dependencies have been taken care of, you can install CleverHans using
 If you are installing CleverHans using `pip`, run the following command:
 
 ```
-pip install -e git+http://github.com/tensorflow/cleverhans.git#egg=cleverhans
+pip install -e git+https://github.com/tensorflow/cleverhans.git#egg=cleverhans
 ```
 
 #### Manual installation
@@ -133,6 +133,9 @@ on the mailing list for CleverHans development: [cleverhans-dev@googlegroups.com
 * When making code contributions to CleverHans, you follow the
 `PEP8` coding style in your pull requests.
 * When making your first pull request, you [sign the Google CLA](https://cla.developers.google.com/clas)
+* We do not accept pull requests that add git submodules because of [the
+  problems that arise when maintaining git
+  submodules](https://medium.com/@porteneuve/mastering-git-submodules-34c65e940407)
 
 Bug fixes can be initiated through Github pull requests.
 
@@ -142,14 +145,15 @@ If you use CleverHans for academic research, you are highly encouraged
 (though not required) to cite the following [paper](https://arxiv.org/abs/1610.00768):
 
 ```
-@article{papernot2016cleverhans,
-  title={cleverhans v1.0.0: an adversarial machine learning library},
-  author={Papernot, Nicolas and Goodfellow, Ian and Sheatsley, Ryan and Feinman, Reuben and McDaniel, Patrick},
+@article{papernot2017cleverhans,
+  title={cleverhans v2.0.0: an adversarial machine learning library},
+  author={Nicolas Papernot, Nicholas Carlini, Ian Goodfellow, Reuben Feinman,
+  Fartash Faghri, Alexander Matyasko, Karen Hambardzumyan, Yi-Lin Juang, Alexey
+  Kurakin, Ryan Sheatsley, Abhibhav Garg, Yen-Chen Lin},
   journal={arXiv preprint arXiv:1610.00768},
-  year={2016}
+  year={2017}
 }
 ```
-There is not yet an ArXiv tech report for v2.0.0 but one will be prepared soon.
 
 ## About the name
 
@@ -175,18 +179,30 @@ Ryan Sheatsley (Pennsylvania State University).
 
 The following authors contributed 100 lines or more (ordered according to the GitHub contributors page):
 * Nicolas Papernot (Pennsylvania State University, Google Brain intern)
+* Fartash Faghri (University of Toronto, Google Brain intern)
 * Nicholas Carlini (UC Berkeley)
 * Ian Goodfellow (Google Brain)
 * Reuben Feinman (Symantec)
-* Fartash Faghri (University of Toronto, Google Brain intern)
-* Alexander Matyasko (Nanyang Technological University)
-* Karen Hambardzumyan (YerevaNN)
-* Yi-Lin Juang (NTUEE)
 * Alexey Kurakin (Google Brain)
+* Cihang Xie (Johns Hopkins)
+* Yash Sharma (The Cooper Union)
+* Tom Brown (Google Brain)
+* Aurko Roy (Google Brain)
+* Alexander Matyasko (Nanyang Technological University)
+* Vahid Behzadan (Kansas State)
+* Karen Hambardzumyan (YerevaNN)
+* Zhishuai Zhang (Johns Hopkins)
+* Yi-Lin Juang (NTUEE)
+* Zhi Li
 * Ryan Sheatsley (Pennsylvania State University)
 * Abhibhav Garg (IIT Delhi)
-* Yen-Chen Lin (National Tsing Hua University)
+* Jonathan Uesato (MIT)
+* Willi Gierke (Hasso Plattner Institute)
+* Yinpeng Dong (Tsinghua University)
+* David Berthelot (Google Brain)
 * Paul Hendricks
+* Jonas Rauber (IMPRS)
+* Shuolongbj
 
 ## Copyright
 

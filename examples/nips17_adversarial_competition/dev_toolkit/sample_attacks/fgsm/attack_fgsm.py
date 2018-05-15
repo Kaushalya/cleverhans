@@ -93,6 +93,7 @@ def load_images(input_dir, batch_shape):
   if idx > 0:
     yield filenames, images
 
+
 def load_kaffe_model(name,  x_input, reuse=False):
     '''Creates and returns an instance of the model given its class name.
     The created model has a single placeholder node for feeding images.
@@ -114,9 +115,9 @@ def load_kaffe_model(name,  x_input, reuse=False):
     spec = models.get_data_spec(model_class=NetClass)
     data_node = tf.placeholder(tf.float32,
                                shape=(None, spec.crop_size, spec.crop_size, spec.channels))
-
     # Construct and return the model
     return NetClass({'data': x_input}, reuse=reuse, trainable=False)
+
 
 def save_images(images, filenames, output_dir):
   """Saves images to the output directory.

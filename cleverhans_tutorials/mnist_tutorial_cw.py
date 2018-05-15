@@ -1,3 +1,9 @@
+"""
+This tutorial shows how to generate adversarial examples
+using C&W attack in white-box setting.
+The original paper can be found at:
+https://nicholas.carlini.com/papers/2017_sp_nnrobustattacks.pdf
+"""
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -232,7 +238,7 @@ if __name__ == '__main__':
     flags.DEFINE_float('learning_rate', 0.001, 'Learning rate for training')
     flags.DEFINE_string('model_path', os.path.join("models", "mnist"),
                         'Path to save or load the model file')
-    flags.DEFINE_boolean('attack_iterations', 100,
+    flags.DEFINE_integer('attack_iterations', 100,
                          'Number of iterations to run attack; 1000 is good')
     flags.DEFINE_boolean('targeted', True,
                          'Run the tutorial in targeted mode?')

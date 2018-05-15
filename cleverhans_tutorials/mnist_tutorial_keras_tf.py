@@ -1,3 +1,11 @@
+"""
+This tutorial shows how to generate adversarial examples using FGSM
+and train a model using adversarial training with Keras.
+It is very similar to mnist_tutorial_tf.py, which does the same
+thing but without a dependence on keras.
+The original paper can be found at:
+https://arxiv.org/abs/1412.6572
+"""
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -51,7 +59,6 @@ def mnist_tutorial(train_start=0, train_end=60000, test_start=0,
         raise RuntimeError("This tutorial requires keras to be configured"
                            " to use the TensorFlow backend.")
 
-    # Image dimensions ordering should follow the Theano convention
     if keras.backend.image_dim_ordering() != 'tf':
         keras.backend.set_image_dim_ordering('tf')
         print("INFO: '~/.keras/keras.json' sets 'image_dim_ordering' to "
